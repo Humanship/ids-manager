@@ -1,0 +1,15 @@
+[features]
+seeds = false
+skip-lint = false
+[programs.localnet]
+humanship = "7QiBiGFJZqXoLuZ75K9nmsh5UhYHAPutAVR7xfoacMM7"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "https://devnet.helius-rpc.com/?api-key=XXXXXXXXXXXXXXXXXXXX"
+wallet = "/Users/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
