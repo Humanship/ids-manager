@@ -19,6 +19,8 @@ use anchor_spl::{
 use anchor_spl::associated_token::AssociatedToken;
 
 
+
+
 const MPL_METADATA_ID:[u8;32] = [11, 112, 101, 177, 227, 209, 124, 69, 56, 157, 82, 127, 107, 4, 195, 205, 88, 184, 108, 115, 26, 160, 253, 181, 73, 182, 209, 188, 3, 248, 41, 70];
 
 #[derive(Clone)]
@@ -51,7 +53,10 @@ pub mod base_ix {
     let merkle_tree = merkle_account.clone().to_account_info();
     
     let payer = ctx.accounts.payer.to_account_info();
-   
+    
+    //let lut = ctx.accounts.payer.to_account_info();
+    
+    //PDA
     let tree_authority = ctx.accounts.tree_authority.to_account_info();
     
     
@@ -96,6 +101,29 @@ pub mod base_ix {
      }
    }
    
+   
+    /*
+    let result = create_tree(
+    &bubblegum_program, 
+    &tree_authority, 
+    &merkle_tree, 
+    &payer.clone(), 
+    &merkle_manager_info, 
+    &log_wrapper, 
+    &compression_program, 
+    &system_program, 
+    &outer, 
+    &[payer],
+    max_depth,
+    max_buffer_size
+    );
+    
+    match result {
+    Ok(()) => {},
+    Err(err) => return Err(err),
+    }
+    
+    */
     
     Ok(())
   }

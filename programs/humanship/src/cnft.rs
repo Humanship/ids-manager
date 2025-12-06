@@ -64,17 +64,28 @@ impl anchor_lang::Id for SplAccountCompression {
   }
 }
 
+//36+14+204+2+1+1+2+2
 #[derive(AnchorSerialize, AnchorDeserialize, PartialEq, Eq, Debug, Clone)]
 pub struct MetadataArgs { //490
+    /// The name of the asset
     pub name: String, //36
+    /// The symbol for the asset
     pub symbol: String, //14
+    /// URI pointing to JSON representing the asset
     pub uri: String, //204
+    /// Royalty basis points that goes to creators in secondary sales (0-10000)
     pub seller_fee_basis_points: u16, //2
+    // Immutable, once flipped, all sales of this metadata are considered secondary.
     pub primary_sale_happened: bool, //1
+    // Whether or not the data struct is mutable, default is not
     pub is_mutable: bool, //1
+    /// nonce for easy calculation of editions, if present
     pub edition_nonce: Option<u8>, //2
+    /// Since we cannot easily change Metadata, we add the new DataV2 fields here at the end.
     pub token_standard: Option<TokenStandard>, //2
+    /// Collection
     pub collection: Option<Collection>, //34
+    /// Uses
     pub uses: Option<Uses>, //18
     pub token_program_version: TokenProgramVersion, //2
     pub creators: Vec<Creator>, //174
@@ -146,6 +157,7 @@ pub fn mint_to_collection_cnft<'a>(
   signature:&[&[&[u8]]],
   remaining_accounts:&[AccountInfo<'a>]
 ) -> Result<()> {
+  //153, 18, 178, 47, 197, 158, 86, 15
   
   
   let remaining_accounts_len = remaining_accounts.len();
@@ -210,6 +222,7 @@ pub fn mint_to_collection_cnft<'a>(
      system_program.clone(),
     ]);
     
+    // Add "accounts" (hashes) that make up the merkle proof from the remaining accounts.
      for acc in remaining_accounts.iter() {
       accounts.push(AccountMeta::new_readonly(acc.key(), true));
       account_infos.push(acc.clone());
@@ -221,10 +234,163 @@ pub fn mint_to_collection_cnft<'a>(
      data,
     };
     
+   //let outer = &[signature.as_slice()];
      
    let acc2 = account_infos.clone();
    solana_program::program::invoke_signed(&instruction, &acc2[..], signature)?;
    
+  
+  Ok(())
+}
+
+pub fn verify_leaf<'a>(
+  compression_program: &AccountInfo<'a>,
+  merkle_tree: &AccountInfo<'a>,
+  leaf_hash:[u8;32],
+  root_hash:[u8;32],
+  index:u32,
+  remaining_accounts:&[AccountInfo<'a>]
+) -> Result<()> {
+  
+  
+  let remaining_accounts_len = remaining_accounts.len();
+   let mut accounts = Vec::with_capacity(
+    1 // space for the 1 AccountMetas
+    + remaining_accounts_len,
+   );
+   accounts.extend(vec![
+    AccountMeta::new_readonly(merkle_tree.key(), false), //merkle_tree
+   ]);
+   
+   let mint_discriminator: [u8; 8] = [124, 220,  22, 223, 104,  10, 250, 224];
+   
+   let mut data:Vec<u8> = Vec::with_capacity(
+      8 // The length of mint_to_collection_discriminator,
+      + 32
+      + 32
+      + 4
+   );
+   
+   data.extend(mint_discriminator);
+   data.extend(&root_hash);
+   data.extend(&leaf_hash);
+   data.extend(&index.to_le_bytes());
+   
+   let mut account_infos = Vec::with_capacity(
+     1 // space for the 7 AccountInfos
+     + remaining_accounts_len,
+    );
+    
+    account_infos.extend(vec![
+      merkle_tree.clone()
+     ]);
+     
+     for acc in remaining_accounts.iter() {
+         accounts.push(AccountMeta::new_readonly(acc.key(), false));
+         account_infos.push(acc.clone());
+        }
+        
+      let instruction = solana_program::instruction::Instruction {
+        program_id: compression_program.key(),
+        accounts,
+        data,
+       };
+       
+      let acc2 = account_infos.clone();
+      let result = solana_program::program::invoke(&instruction, &acc2[..]);
+      
+      match result {
+      Ok(()) => {
+      }
+      Err(_) => {
+         // Handle error case  
+         return Err(ProgramError::InvalidArgument.into())
+       }
+      } 
+  
+ Ok(()) 
+}
+
+pub fn mint_cnft<'a>(
+  bubblegum_program: &AccountInfo<'a>,
+  tree_authority: &AccountInfo<'a>,
+  leaf_delegate: &AccountInfo<'a>,
+  leaf_owner: &AccountInfo<'a>,
+  merkle_tree: &AccountInfo<'a>,
+  payer: &AccountInfo<'a>,
+  tree_delegate: &AccountInfo<'a>,
+  log_wrapper: &AccountInfo<'a>,
+  compression_program: &AccountInfo<'a>,
+  system_program: &AccountInfo<'a>,
+  metadata:MetadataArgs,
+  signature:&[&[&[u8]]],
+  remaining_accounts:&[AccountInfo<'a>]
+) -> Result<()> {
+  //153, 18, 178, 47, 197, 158, 86, 15
+  
+  
+  let remaining_accounts_len = remaining_accounts.len();
+   let mut accounts = Vec::with_capacity(
+    9 // space for the 7 AccountMetas
+    + remaining_accounts_len,
+   );
+   accounts.extend(vec![
+    AccountMeta::new(tree_authority.key(), false), //tree_auth
+    AccountMeta::new_readonly(leaf_owner.key(), false), //leaf_owner
+    AccountMeta::new_readonly(leaf_delegate.key(), false), //leaf_delegate
+    AccountMeta::new(merkle_tree.key(), false), //merkle_tree
+    AccountMeta::new_readonly(payer.key(), true), //payer
+    AccountMeta::new_readonly(tree_delegate.key(), true), //tree_delegate
+    AccountMeta::new_readonly(log_wrapper.key(), false),
+    AccountMeta::new_readonly(compression_program.key(), false),
+    AccountMeta::new_readonly(system_program.key(), false),
+   ]);
+   
+   let mint_discriminator: [u8; 8] = [145, 98, 192, 118, 184, 147, 118, 104];
+   
+   let metadata_vec = metadata.try_to_vec().unwrap();
+   
+   
+   
+   let mut data = Vec::with_capacity(
+     8 // The length of mint_to_collection_discriminator,
+     + metadata_vec.len()
+  );
+  
+  data.extend(mint_discriminator);
+  data.extend(metadata_vec);
+  
+  let mut account_infos = Vec::with_capacity(
+    10 // space for the 7 AccountInfos
+    + remaining_accounts_len,
+   );
+   
+   account_infos.extend(vec![
+     tree_authority.clone(), //tree_auth
+     leaf_owner.clone(), //leaf_owner
+     leaf_delegate.clone(), //leaf_delegate
+     merkle_tree.clone(), //merkle_tree
+     payer.clone(), //payer
+     tree_delegate.clone(), //tree_delegate
+     log_wrapper.clone(),
+     compression_program.clone(),
+     system_program.clone(),
+    ]);
+  
+    // Add "accounts" (hashes) that make up the merkle proof from the remaining accounts.
+     for acc in remaining_accounts.iter() {
+      accounts.push(AccountMeta::new_readonly(acc.key(), true));
+      account_infos.push(acc.clone());
+     }
+     
+   let instruction = solana_program::instruction::Instruction {
+     program_id: bubblegum_program.key(),
+     accounts,
+     data,
+    };
+    
+   let acc2 = account_infos.clone();
+   solana_program::program::invoke_signed(&instruction, &acc2[..], signature)?;
   
   Ok(())
 }
@@ -246,7 +412,11 @@ pub fn burn_cnft<'a>(
    signature:Vec<&[u8]>,
    remaining_accounts:&[AccountInfo<'a>]
 ) -> Result<()> {
- 
+   
+   /*** STARTS BURN ***/
+   //root:[u8; 32], data_hash:[u8; 32], creator_hash:[u8; 32], nonce:u64, index:u32
+   
+   
    let remaining_accounts_len = remaining_accounts.len();
    let mut accounts = Vec::with_capacity(
     7 // space for the 7 AccountMetas
@@ -285,6 +455,7 @@ pub fn burn_cnft<'a>(
     + remaining_accounts_len,
    );
    
+   //let tree_auth_clone = tree_authority.clone();
    
    account_infos.extend(vec![
     tree_authority.clone(),
@@ -296,6 +467,7 @@ pub fn burn_cnft<'a>(
     system_program.clone(),
    ]);
    
+   // Add "accounts" (hashes) that make up the merkle proof from the remaining accounts.
    for acc in remaining_accounts.iter() {
     accounts.push(AccountMeta::new_readonly(acc.key(), false));
     account_infos.push(acc.clone());
@@ -307,6 +479,14 @@ pub fn burn_cnft<'a>(
     data,
    };
    
+   
+   /*let pack_bump_vector = pay_bump.to_le_bytes(); //PDA that I use to delegate the leaf
+    let inner2 = vec![
+      b"pack_authority".as_ref(),
+      pack_acount_key.as_ref(),
+      &pack_bump_vector
+     ];*/
+   
    let outer = &[signature.as_slice()];
    
    let acc2 = account_infos.clone();
@@ -314,6 +494,7 @@ pub fn burn_cnft<'a>(
    solana_program::program::invoke_signed(&instruction, &acc2[..], outer)?;
    
    
+   /*** ENDS BURN ***/
    
    Ok(())
 }
