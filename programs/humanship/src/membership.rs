@@ -102,7 +102,6 @@ pub mod membership_ix {
             verified:true
         });
 
-        msg!("creators {:?}",creators);
         
         let creator_data = creators.iter().map(|c| { Ok([c.address.as_ref(), &[c.verified as u8], &[c.share]].concat()) }).collect::<Result<Vec<_>>>()?;
         let creator_hash = solana_program::keccak::hashv( creator_data.iter().map(|c| c.as_slice()).collect::<Vec<&[u8]>>().as_ref());
@@ -136,7 +135,7 @@ pub mod membership_ix {
             }
 
             if count_at_slot != membership_sync_check.last_slot_members_count {
-                msg!("wrong count {:?} {:?} {:?}",count_at_slot,membership_sync_check.last_slot_members_count,bytes_counts_at_slot);
+                msg!("wrong count");
                 return Err(MembershipError::RelayerOutOfSync.into()) 
             }
 
@@ -211,20 +210,7 @@ pub mod membership_ix {
 
     pub fn register_membership(ctx: Context<RegisterMembership>, registry_slot:u32, membership_sync_check:MembershipSyncCheck, timestamp:u32, proof:[u8;64], arweave:String, version:u16, bundler:AssetBundler) -> Result<()> {
 
-        /*{
-
-            let my_membership_slot = 8+MEMBERSHIP_CONFIG_SIZE + registry_slot as usize * MEMBERSHIP_SIZE_PER_SLOT;
-            
-            let membership = &mut ctx.accounts.membership;
-            let info = membership.to_account_info();
-            let mut ref_data = info.try_borrow_mut_data()?;
-
-            ref_data[my_membership_slot..my_membership_slot+7].copy_from_slice(&membership_sync_check.last_slot_hash);
-
-            msg!("sl {:?}",membership_sync_check.last_slot_hash);
-
-        }
-        return Ok(());*/
+        
  
         let membership_key = ctx.accounts.membership.key();
 
@@ -304,15 +290,7 @@ pub mod membership_ix {
             membership_slot_bump
         ];
 
-        /*let membership_signature = &[
-            b"membership".as_ref(),
-            store_key.as_ref(),
-            &range_bytes.as_ref(),
-            &[membership_type.clone() as u8, membership_data_type.clone() as u8],
-            &slot_bytes.as_ref(),
-            membership_bump
-        ];*/
-
+        
         let merkle_manager = &[
             b"tree".as_ref(),
             merkle_manager_bump
@@ -406,14 +384,7 @@ pub mod membership_ix {
         
 
         //payload.push(is_adult);
-        /*if let Some(birthdate) = birthdate {
-            payload.push(1);
-            payload.extend(birthdate.to_le_bytes());
-        }
-        if let Some(nation) = nation {
-            payload.push(2);
-            payload.extend(nation);
-        }*/
+        
 
         if payload.len() > 0 {
             uri += "?p=";
@@ -495,15 +466,9 @@ pub mod membership_ix {
 
             let asset_id = get_asset_id(&ctx.accounts.merkle_tree.key(), num_minted - 1);
 
-            /*let asset_id_0 = get_asset_id(&ctx.accounts.merkle_tree.key(), num_minted);
-            let asset_id_1 = get_asset_id(&ctx.accounts.merkle_tree.key(), num_minted+1);*/
             
             let asset_bytes = asset_id.to_bytes();
-            msg!("ass-1 {:?}",asset_id);
-           // msg!("ass0 {:?}",asset_id_0);
-            //msg!("ass1 {:?}",asset_id_1);
 
-            msg!("da {:?}",num_minted);
 
             if bytes_hash_at_slot != &membership_sync_check.last_slot_hash {
                 msg!("wrong hash");
@@ -511,7 +476,7 @@ pub mod membership_ix {
             }
 
             if count_at_slot != membership_sync_check.last_slot_members_count {
-                msg!("wrong count {:?} {:?} {:?}",count_at_slot,membership_sync_check.last_slot_members_count,bytes_counts_at_slot);
+                msg!("wrong count");
                 return Err(MembershipError::RelayerOutOfSync.into()) 
             }
 
@@ -526,7 +491,6 @@ pub mod membership_ix {
 //msg!("next {:?} {:?}", prev_plus_new_hash, next_hash);
 
             if (count_at_slot+1) > 16_777_215 { //max number with 3 bytes
-                msg!("mal2 {:?}",count_at_slot);
                 return Err(GeneralError::GeneralError.into()) 
             }
 
@@ -805,10 +769,6 @@ pub mod membership_ix {
 }
 
 
-/*#[derive(Accounts)]
-pub struct VerifyMembership<'info> {
-    pub system_program: Program<'info, System>,
-}*/
 
 #[derive(Accounts)]
 #[instruction(range:[u32;2], slot:u32, membership_type:MembershipType, membership_data_type:MembershipDataType)]
